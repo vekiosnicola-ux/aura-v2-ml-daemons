@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auto-scaling-ml-daemon
+  namespace: aura-ecosystem
+  labels:
+    app: auto-scaling-ml
+    component: ml-daemon
+    version: v2.0.0
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: auto-scaling-ml
+  template:
+    metadata:
+      labels:
+        app: auto-scaling-ml
+        component: ml-daemon
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+    spec:
+      serviceAccountName: ml-daemons-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
+      containers:
+      - name: auto-scaling-ml
+        image: aura-ecosystem/auto-scaling-ml:v2.0.0
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 9091
+          name: metrics
+        env:
+        - name: KUBERNETES_SERVICE_HOST
+          value: "kubernetes.default.svc"
+        - name: MODEL_UPDATE_INTERVAL
+          value: "300s"
+        - name: PREDICTION_HORIZON
+          value: "900s"
+        - name: SCALE_UP_THRESHOLD
+          value: "0.8"
+        - name: SCALE_DOWN_THRESHOLD
+          value: "0.3"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auto-scaling-ml-service
+  namespace: aura-ecosystem
+  labels:
+    app: auto-scaling-ml
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+  - port: 9091
+    targetPort: 9091
+    name: metrics
+  selector:
+    app: auto-scaling-ml
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: auto-scaling-ml-hpa
+  namespace: aura-ecosystem
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: auto-scaling-ml-daemon
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 60

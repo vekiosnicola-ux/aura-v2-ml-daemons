@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: failure-prediction-daemon
+spec:
+  template:
+    spec:
+      containers:
+      - name: failure-prediction
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "1000m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auto-scaling-ml-daemon
+spec:
+  template:
+    spec:
+      containers:
+      - name: auto-scaling-ml
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inference-routing-optimizer
+spec:
+  template:
+    spec:
+      containers:
+      - name: inference-routing-optimizer
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "1000m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"

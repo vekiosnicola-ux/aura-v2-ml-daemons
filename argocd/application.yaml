@@ -1,0 +1,46 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aura-ml-daemons-v2
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: aura-ml-daemons
+    app.kubernetes.io/component: gitops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/aura-ecosystem/aura-v2-ml-daemons.git
+    targetRevision: main
+    path: production
+    kustomize:
+      images:
+      - name: aura-ecosystem/failure-prediction
+        newTag: v2.0.0
+      - name: aura-ecosystem/auto-scaling-ml
+        newTag: v2.0.0
+      - name: aura-ecosystem/inference-routing-optimizer
+        newTag: v2.0.0
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: aura-ecosystem
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - CreateNamespace=true
+    - PrunePropagationPolicy=foreground
+    - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  ignoreDifferences:
+  - group: apps
+    kind: Deployment
+    jsonPointers:
+    - /spec/replicas
+  revisionHistoryLimit: 10

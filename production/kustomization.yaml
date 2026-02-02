@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: aura-ecosystem
+
+resources:
+- failure-prediction/deployment.yaml
+- auto-scaling-ml/deployment.yaml
+- inference-routing-optimizer/deployment.yaml
+- namespace.yaml
+
+configMapGenerator:
+- name: ml-daemons-config
+  literals:
+  - LOG_LEVEL=info
+  - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector.aura-observability.svc.cluster.local:4317
+  - OTEL_SERVICE_NAME=aura-ml-daemons-v2
+  - ENVIRONMENT=production
+
+commonLabels:
+  app.kubernetes.io/name: aura-ml-daemons
+  app.kubernetes.io/version: v2.0.0
+  app.kubernetes.io/component: ml-infrastructure
+
+patchesStrategicMerge:
+- patches/increase-replicas.yaml
+- patches/resource-limits.yaml
+
+replicas:
+- name: failure-prediction-daemon
+  count: 3
+- name: auto-scaling-ml-daemon
+  count: 2
+- name: inference-routing-optimizer
+  count: 2

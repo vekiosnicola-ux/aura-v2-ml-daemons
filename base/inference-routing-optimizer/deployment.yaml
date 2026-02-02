@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inference-routing-optimizer
+  namespace: aura-ecosystem
+  labels:
+    app: inference-routing
+    component: optimizer
+    version: v2.0.0
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: inference-routing
+  template:
+    metadata:
+      labels:
+        app: inference-routing
+        component: optimizer
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9092"
+    spec:
+      serviceAccountName: ml-daemons-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
+      containers:
+      - name: inference-routing-optimizer
+        image: aura-ecosystem/inference-routing-optimizer:v2.0.0
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 9092
+          name: metrics
+        - containerPort: 50051
+          name: grpc
+        env:
+        - name: ROUTING_ALGORITHM
+          value: "multi_armed_bandit"
+        - name: EXPLORATION_RATE
+          value: "0.1"
+        - name: MODEL_UPDATE_INTERVAL
+          value: "60s"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inference-routing-service
+  namespace: aura-ecosystem
+  labels:
+    app: inference-routing
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+  - port: 50051
+    targetPort: 50051
+    name: grpc
+  - port: 9092
+    targetPort: 9092
+    name: metrics
+  selector:
+    app: inference-routing
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: inference-routing-hpa
+  namespace: aura-ecosystem
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: inference-routing-optimizer
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 65
